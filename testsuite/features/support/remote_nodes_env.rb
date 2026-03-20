@@ -36,6 +36,11 @@ end
 # Get the RemoteNode passing the host (includes lazy initialization)
 def get_target(host, refresh: false)
   node = $node_by_host[host]
-  node = RemoteNode.new(host) if node.nil? || refresh == true
-  node
+  return node if !node.nil? && refresh == false
+
+  if ENV.fetch('CONTAINER_RUNTIME', '') == 'k8s' && %w[server db proxy].include?(host)
+    K8sNode.new(host)
+  else
+    RemoteNode.new(host)
+  end
 end
