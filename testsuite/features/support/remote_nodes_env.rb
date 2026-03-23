@@ -38,9 +38,5 @@ def get_target(host, refresh: false)
   node = $node_by_host[host]
   return node if !node.nil? && refresh == false
 
-  if ENV.fetch('CONTAINER_RUNTIME', '') == 'k8s' && %w[server db proxy].include?(host)
-    K8sNode.new(host)
-  else
-    RemoteNode.new(host)
-  end
+  RemoteNode.new(host)
 end

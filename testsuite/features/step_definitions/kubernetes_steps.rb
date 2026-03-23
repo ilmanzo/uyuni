@@ -6,7 +6,7 @@
 When(/^I delete the pod with label "([^"]*)"$/) do |label|
   pod_name = KubernetesHelper.get_pod_name_by_label(label)
   namespace = ENV.fetch('K8S_NAMESPACE', 'default')
-  _out, code = get_target('localhost').run_local("kubectl delete pod #{pod_name} -n #{namespace}")
+  _out, code = get_target('server').run_local("kubectl delete pod #{pod_name} -n #{namespace}")
   raise "Failed to delete pod #{pod_name}" unless code.zero?
 end
 
@@ -14,7 +14,7 @@ When(/^I wait until the pod with label "([^"]*)" is running$/) do |label|
   namespace = ENV.fetch('K8S_NAMESPACE', 'default')
   repeat_until_timeout(timeout: DEFAULT_TIMEOUT, message: "Pod with label '#{label}' not running in #{namespace}") do
     cmd = "kubectl get pods -n #{namespace} -l #{label} -o jsonpath='{.items[0].status.phase}'"
-    phase, _code = get_target('localhost').run_local(cmd, check_errors: false)
+    phase, _code = get_target('server').run_local(cmd, check_errors: false)
     break if phase.strip == 'Running'
 
     sleep 5
@@ -47,6 +47,14 @@ Then(/^the logs of pod with label "([^"]*)" should contain the success string "(
   pod_name = KubernetesHelper.get_pod_name_by_label(label)
   namespace = ENV.fetch('K8S_NAMESPACE', 'default')
   cmd = "kubectl logs -n #{namespace} #{pod_name} --since=1h"
-  logs, _code = get_target('localhost').run_local(cmd, check_errors: false)
+  logs, _code = get_target('server').run_local(cmd, check_errors: false)
   raise "Success string '#{success_string}' not found in logs of #{pod_name}" unless logs.include?(success_string)
+end
+
+When(/^I run "([^"]*)" in the pod with label "([^"]*)"$/) do |cmd, label|
+  pod_name = KubernetesHelper.get_pod_name_by_label(label)
+  namespace = ENV.fetch('K8S_NAMESPACE', 'default')
+  cmd_prefixed = "kubectl exec -n #{namespace} #{pod_name} -- #{cmd}"
+  # We use get_target('server') to run kubectl since the server node hosts the cluster/kubectl
+  @command_output, _code = get_target('server').run_local(cmd_prefixed, check_errors: false)
 end

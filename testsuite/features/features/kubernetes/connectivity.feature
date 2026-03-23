@@ -9,10 +9,10 @@ Feature: Kubernetes connectivity and service discovery
 
   Scenario: Server can reach Database pod
     When I run "pg_isready -h uyuni-db -p 5432" on "server"
-    Then the output should contain "accepting connections"
+    Then I should see "accepting connections" in the output
 
   Scenario: Service Discovery works
     When I run "getent hosts uyuni-db" on "server"
-    Then the output should contain "uyuni-db"
-    When I run "getent hosts uyuni-server" on "db"
-    Then the output should contain "uyuni-server"
+    Then I should see "uyuni-db" in the output
+    When I run "getent hosts uyuni-server" in the pod with label "app=uyuni-db"
+    Then I should see "uyuni-server" in the output

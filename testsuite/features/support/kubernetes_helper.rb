@@ -10,8 +10,7 @@ module KubernetesHelper
   # @return [String] The name of the matching pod.
   def self.get_pod_name_by_label(label, namespace: ENV.fetch('K8S_NAMESPACE', 'default'))
     cmd = "kubectl get pods -n #{namespace} -l #{label} -o jsonpath='{.items[0].metadata.name}'"
-    # We use backticks or system here because get_target might not be initialized yet
-    pod_name = `#{cmd}`
+    pod_name, _code = get_target('server').run_local(cmd, check_errors: false)
     pod_name.strip
   end
 
@@ -23,7 +22,7 @@ module KubernetesHelper
   def self.wait_for_pod_ready(label, namespace: ENV.fetch('K8S_NAMESPACE', 'default'), timeout: DEFAULT_TIMEOUT)
     repeat_until_timeout(timeout: timeout, message: "Pod with label '#{label}' not ready in #{namespace}") do
       cmd = "kubectl get pods -n #{namespace} -l #{label} -o jsonpath='{.items[0].status.containerStatuses[0].ready}'"
-      ready = `#{cmd}`
+      ready, _code = get_target('server').run_local(cmd, check_errors: false)
       break if ready.strip == 'true'
 
       sleep 5
@@ -40,7 +39,7 @@ module KubernetesHelper
   # @return [Array<String>] List of matching error lines found in the logs.
   def self.scan_pod_logs(pod_name, forbidden_patterns, whitelist: [], namespace: ENV.fetch('K8S_NAMESPACE', 'default'), since: '10m')
     cmd = "kubectl logs -n #{namespace} #{pod_name} --since=#{since}"
-    logs = `#{cmd}`
+    logs, _code = get_target('server').run_local(cmd, check_errors: false)
     
     error_lines = []
     logs.each_line do |line|
