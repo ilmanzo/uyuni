@@ -36,15 +36,6 @@ class RemoteNode
     if @host == 'server'
       _out, _err, code = ssh('which mgrctl', host: @target)
       @has_mgrctl = code.zero?
-      @mgrctl_cmd = 'mgrctl'
-      if @has_mgrctl
-        runtime = ENV.fetch('CONTAINER_RUNTIME', '')
-        if %w[k8s k3s].include?(runtime)
-          @mgrctl_cmd = 'mgrctl --backend kubectl'
-        elsif runtime == 'podman'
-          @mgrctl_cmd = 'mgrctl --backend podman'
-        end
-      end
       # Remove /etc/motd inside the container, or any output from run will contain the content of /etc/motd
       run('rm -f /etc/motd && touch /etc/motd')
       out, _code = run('sed -n \'s/^java.hostname *= *\(.\+\)$/\1/p\' /etc/rhn/rhn.conf')
@@ -122,7 +113,7 @@ class RemoteNode
   # @param exec_option [Boolean] The container exec option.
   # @return [Array<String, String, Integer>] The output, error, and exit code.
   def run(cmd, runs_in_container: true, separated_results: false, check_errors: true, timeout: DEFAULT_TIMEOUT, successcodes: [0], buffer_size: 65_536, verbose: false, exec_option: '-i')
-    cmd_prefixed = @has_mgrctl && runs_in_container ? "#{@mgrctl_cmd} exec #{exec_option} '#{cmd.gsub('\'', '\'"\'"\'')}'" : cmd
+    cmd_prefixed = @has_mgrctl && runs_in_container ? "mgrctl exec #{exec_option} '#{cmd.gsub('\'', '\'"\'"\'')}'" : cmd
     run_local(cmd_prefixed, separated_results: separated_results, check_errors: check_errors, timeout: timeout, successcodes: successcodes, buffer_size: buffer_size, verbose: verbose)
   end
 
@@ -144,8 +135,8 @@ class RemoteNode
     cmd += "; echo ${PIPESTATUS[*]} > #{pipestatus_file_path}"
     cmd_read_codes = "cat #{pipestatus_file_path}; rm #{pipestatus_file_path}"
     if @has_mgrctl && runs_in_container
-      cmd = "#{@mgrctl_cmd} exec #{exec_option} '#{cmd.gsub('\'', '\'"\'"\'')}'"
-      cmd_read_codes = "#{@mgrctl_cmd} exec #{exec_option} '#{cmd_read_codes.gsub('\'', '\'"\'"\'')}'"
+      cmd = "mgrctl exec #{exec_option} '#{cmd.gsub('\'', '\'"\'"\'')}'"
+      cmd_read_codes = "mgrctl exec #{exec_option} '#{cmd_read_codes.gsub('\'', '\'"\'"\'')}'"
     end
 
     out, initial_code = run_local(cmd, separated_results: separated_results, check_errors: check_errors, timeout: timeout, successcodes: successcodes, buffer_size: buffer_size, verbose: verbose)
@@ -241,7 +232,7 @@ class RemoteNode
       tmp_file = File.join('/tmp/', File.basename(test_runner_file))
       success = get_target('localhost').scp_upload(test_runner_file, tmp_file, host: @full_hostname)
       if success
-        _out, code = run_local("#{@mgrctl_cmd} cp #{tmp_file} server:#{remote_node_file}")
+        _out, code = run_local("mgrctl cp #{tmp_file} server:#{remote_node_file}")
         raise ScriptError, "Failed to copy #{tmp_file} to container" unless code.zero?
       end
     else
@@ -258,7 +249,7 @@ class RemoteNode
   def extract(remote_node_file, test_runner_file)
     if @has_mgrctl
       tmp_file = File.join('/tmp/', File.basename(remote_node_file))
-      _out, code = run_local("#{@mgrctl_cmd} cp server:#{remote_node_file} #{tmp_file}", verbose: false)
+      _out, code = run_local("mgrctl cp server:#{remote_node_file} #{tmp_file}", verbose: false)
       raise ScriptError, "Failed to extract #{remote_node_file} from container" unless code.zero?
 
       success = get_target('localhost').scp_download(tmp_file, test_runner_file, host: @full_hostname)
@@ -277,7 +268,7 @@ class RemoteNode
   # @return [Boolean] Returns true if the file exists, false otherwise.
   def file_exists?(file)
     if @has_mgrctl
-      _out, code = run_local("#{@mgrctl_cmd} exec -- 'test -f #{file}'", check_errors: false)
+      _out, code = run_local("mgrctl exec -- 'test -f #{file}'", check_errors: false)
     else
       _out, _err, code = ssh("test -f #{file}")
     end
@@ -291,7 +282,7 @@ class RemoteNode
   # @return [Boolean] Returns true if the folder exists, false otherwise.
   def folder_exists?(file)
     if @has_mgrctl
-      _out, code = run_local("#{@mgrctl_cmd} exec -- 'test -d #{file}'", check_errors: false)
+      _out, code = run_local("mgrctl exec -- 'test -d #{file}'", check_errors: false)
     else
       _out, _err, code = ssh("test -d #{file}")
     end
@@ -305,7 +296,7 @@ class RemoteNode
   # @return [Integer] The exit code of the file deletion operation.
   def file_delete(file)
     if @has_mgrctl
-      _out, code = run_local("#{@mgrctl_cmd} exec -- 'rm #{file}'", check_errors: false)
+      _out, code = run_local("mgrctl exec -- 'rm #{file}'", check_errors: false)
     else
       _out, _err, code = ssh("rm #{file}")
     end
@@ -319,7 +310,7 @@ class RemoteNode
   # @return [Integer] The exit code of the operation.
   def folder_delete(folder)
     if @has_mgrctl
-      _out, code = run_local("#{@mgrctl_cmd} exec -- 'rm -rf #{folder}'", check_errors: false)
+      _out, code = run_local("mgrctl exec -- 'rm -rf #{folder}'", check_errors: false)
     else
       _out, _err, code = ssh("rm -rf #{folder}")
     end
