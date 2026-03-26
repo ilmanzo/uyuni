@@ -37,8 +37,9 @@ class RemoteNode
       _out, _err, code = ssh('which mgrctl', host: @target)
       @has_mgrctl = code.zero?
       # Remove /etc/motd inside the container, or any output from run will contain the content of /etc/motd
-      run('rm -f /etc/motd && touch /etc/motd')
-      out, _code = run('sed -n \'s/^java.hostname *= *\(.\+\)$/\1/p\' /etc/rhn/rhn.conf')
+      run('rm -f /etc/motd && touch /etc/motd', check_errors: false)
+      out, _err, _code = run('sed -n \'s/^java.hostname *= *\(.\+\)$/\1/p\' /etc/rhn/rhn.conf', separated_results: true, check_errors: false)
+      out, _err, _code = ssh('hostname -f', host: @target) if _code != 0 || out.strip.empty?
     else
       out, _err, _code = ssh('hostname -f', host: @target)
     end
