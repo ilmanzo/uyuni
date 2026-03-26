@@ -43,6 +43,25 @@ def product
     $product = 'SUSE Manager'
     return 'SUSE Manager'
   end
+
+  if $is_containerized_server
+    $product = 'Uyuni'
+    return 'Uyuni'
+  end
+
+  # Last resort: check if k3s or kubectl are present on the host
+  _out, code = get_target('server').run_local('systemctl is-active k3s', check_errors: false)
+  if code.zero?
+    $product = 'Uyuni'
+    return 'Uyuni'
+  end
+
+  _out, code = get_target('server').run_local('which kubectl', check_errors: false)
+  if code.zero?
+    $product = 'Uyuni'
+    return 'Uyuni'
+  end
+
   raise NotImplementedError, 'Could not determine product'
 end
 
@@ -822,7 +841,17 @@ end
 # @return [String] The server secret key.
 def server_secret
   rhnconf, _code = get_target('server').run('cat /etc/rhn/rhn.conf', check_errors: false)
+  if rhnconf.nil? || rhnconf.empty?
+    pod_name = KubernetesHelper.get_pod_name_by_label('app=uyuni-server')
+    unless pod_name.empty?
+      namespace = ENV.fetch('K8S_NAMESPACE', 'default')
+      rhnconf, _code = get_target('server').run_local("kubectl exec -n #{namespace} #{pod_name} -- cat /etc/rhn/rhn.conf", check_errors: false)
+    end
+  end
+
   data = /server.secret_key\s*=\s*(\h+)$/.match(rhnconf)
+  raise ScriptError, "Could not find server.secret_key in rhn.conf. Content: #{rhnconf}" if data.nil?
+
   data[1].strip
 end
 
